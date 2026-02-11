@@ -64,6 +64,12 @@ async function addUtility(data) {
   return res.json();
 }
 
+async function lookupProviders(address) {
+  const res = await fetch(`/api/lookup?address=${encodeURIComponent(address)}`);
+  if (!res.ok) throw new Error("Lookup failed");
+  return res.json();
+}
+
 // --- Components ---
 
 function CompanyLogo({ logoUrl, brandColor, companyName }) {
@@ -554,22 +560,80 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
   const [zip, setZip] = useState("");
   const [moveOut, setMoveOut] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
   const [error, setError] = useState(null);
 
-  // Utility checkboxes
-  const [electric, setElectric] = useState(true);
-  const [gas, setGas] = useState(true);
-  const [water, setWater] = useState(true);
+  // foundUtilities: array of { type, label, icon, provider_name, confidence, needs_review, checked }
+  const [foundUtilities, setFoundUtilities] = useState(null);
+
+  const UTIL_META = {
+    electric: { label: "Electric", icon: "\u26A1" },
+    gas: { label: "Gas", icon: "\uD83D\uDD25" },
+    water: { label: "Water", icon: "\uD83D\uDCA7" },
+    sewer: { label: "Sewer", icon: "\uD83D\uDEBF" },
+  };
+
+  const canLookup = address && city && state;
+
+  const handleLookup = async () => {
+    if (!canLookup) return;
+    setLookingUp(true);
+    setError(null);
+    setFoundUtilities(null);
+
+    try {
+      const fullAddress = `${address}, ${city}, ${state}${zip ? " " + zip : ""}`;
+      const data = await lookupProviders(fullAddress);
+
+      const results = [];
+      for (const [key, meta] of Object.entries(UTIL_META)) {
+        const entry = data[key];
+        if (entry && entry.provider_name) {
+          results.push({
+            type: key,
+            label: meta.label,
+            icon: meta.icon,
+            provider_name: entry.provider_name,
+            confidence: entry.confidence,
+            needs_review: entry.needs_review,
+            checked: true,
+          });
+        }
+      }
+      setFoundUtilities(results);
+      if (results.length === 0) {
+        setError("No utility providers found for this address. You can still add the property.");
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Provider lookup failed. You can still add the property with default utilities.");
+      // Fall back to manual checkboxes
+      setFoundUtilities([
+        { type: "electric", label: "Electric", icon: "\u26A1", provider_name: "", confidence: null, needs_review: false, checked: true },
+        { type: "gas", label: "Gas", icon: "\uD83D\uDD25", provider_name: "", confidence: null, needs_review: false, checked: true },
+        { type: "water", label: "Water", icon: "\uD83D\uDCA7", provider_name: "", confidence: null, needs_review: false, checked: true },
+      ]);
+    }
+    setLookingUp(false);
+  };
+
+  const toggleUtility = (type) => {
+    setFoundUtilities((prev) =>
+      prev.map((u) => u.type === type ? { ...u, checked: !u.checked } : u)
+    );
+  };
 
   const handleSubmit = async () => {
     if (!address || !city || !state) return;
     setLoading(true);
     setError(null);
 
-    const utilities = [];
-    if (electric) utilities.push({ utility_type: "Electric", provider_name: "Looking up..." });
-    if (gas) utilities.push({ utility_type: "Gas", provider_name: "Looking up..." });
-    if (water) utilities.push({ utility_type: "Water", provider_name: "Looking up..." });
+    const utilities = (foundUtilities || [])
+      .filter((u) => u.checked)
+      .map((u) => ({
+        utility_type: u.label,
+        provider_name: u.provider_name || "",
+      }));
 
     try {
       const res = await createProperty({
@@ -645,34 +709,103 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
             />
           </div>
 
-          {/* Utility checkboxes */}
-          <div>
-            <label style={{
-              fontSize: 12, color: "#667085",
-              display: "block", marginBottom: 8,
-            }}>Utilities to track</label>
-            <div style={{ display: "flex", gap: 16 }}>
-              {[
-                { label: "Electric", icon: "\u26A1", checked: electric, set: setElectric },
-                { label: "Gas", icon: "\uD83D\uDD25", checked: gas, set: setGas },
-                { label: "Water", icon: "\uD83D\uDCA7", checked: water, set: setWater },
-              ].map((u) => (
-                <label key={u.label} style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  fontSize: 14, color: "#344054", cursor: "pointer",
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={u.checked}
-                    onChange={(e) => u.set(e.target.checked)}
-                    style={{ width: 16, height: 16, cursor: "pointer" }}
-                  />
-                  <span>{u.icon}</span>
-                  {u.label}
-                </label>
-              ))}
+          {/* Lookup button */}
+          {!foundUtilities && (
+            <button
+              onClick={handleLookup}
+              disabled={!canLookup || lookingUp}
+              style={{
+                fontSize: 14, fontWeight: 600,
+                background: canLookup ? brandColor : "#e9eaec",
+                color: canLookup ? "#fff" : "#98a2b3",
+                border: "none", borderRadius: 8, padding: "10px 18px",
+                cursor: canLookup ? "pointer" : "not-allowed",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "all 0.15s ease",
+              }}
+            >
+              {lookingUp ? (
+                <>
+                  <span style={{
+                    width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)",
+                    borderTopColor: "#fff", borderRadius: "50%",
+                    animation: "spin 0.8s linear infinite", display: "inline-block",
+                  }} />
+                  Looking up providers...
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                  </svg>
+                  Look up providers
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Utility results */}
+          {foundUtilities && (
+            <div>
+              <label style={{
+                fontSize: 12, color: "#667085",
+                display: "block", marginBottom: 8,
+              }}>Utilities to track</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {foundUtilities.map((u) => (
+                  <label key={u.type} style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    fontSize: 14, color: "#344054", cursor: "pointer",
+                    padding: "8px 12px", borderRadius: 8,
+                    background: u.checked ? "#f9fafb" : "#fff",
+                    border: u.checked ? "1px solid #d0d5dd" : "1px solid #e9eaec",
+                    transition: "all 0.15s ease",
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={u.checked}
+                      onChange={() => toggleUtility(u.type)}
+                      style={{ width: 16, height: 16, cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{u.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{u.label}</div>
+                      {u.provider_name && (
+                        <div style={{ fontSize: 12, color: "#667085", marginTop: 1 }}>
+                          {u.provider_name}
+                          {u.needs_review && (
+                            <span style={{
+                              marginLeft: 6, fontSize: 10, fontWeight: 700,
+                              padding: "1px 5px", borderRadius: 4,
+                              background: "#fffaeb", color: "#b54708",
+                            }}>Needs review</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {u.confidence != null && (
+                      <span style={{
+                        fontSize: 11, color: u.confidence >= 0.8 ? "#067647" : "#b54708",
+                        fontWeight: 600,
+                      }}>
+                        {Math.round(u.confidence * 100)}%
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+              <button
+                onClick={() => { setFoundUtilities(null); setError(null); }}
+                style={{
+                  marginTop: 8, fontSize: 12, color: "#667085",
+                  background: "none", border: "none", cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                Re-lookup providers
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
         {error && (
