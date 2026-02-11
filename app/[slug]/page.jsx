@@ -46,8 +46,11 @@ async function createProperty(data) {
   return res.json();
 }
 
-async function deleteUtility(recordId) {
-  const res = await fetch(`/api/utility?recordId=${encodeURIComponent(recordId)}`, {
+async function deleteUtility(recordId, propertyId, utilityType) {
+  const params = new URLSearchParams({ recordId });
+  if (propertyId) params.set("propertyId", propertyId);
+  if (utilityType) params.set("utilityType", utilityType);
+  const res = await fetch(`/api/utility?${params}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Delete failed");
@@ -142,7 +145,7 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
     if (!confirm(`Remove ${utility.utility_type} from this property?`)) return;
     setRemoving(true);
     try {
-      await deleteUtility(utility.id);
+      await deleteUtility(utility.id, utility.property_id, utility.utility_type);
       onRemove(utility.id);
     } catch (e) {
       console.error(e);
@@ -330,6 +333,7 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
   const [addingType, setAddingType] = useState("");
   const [addingLoading, setAddingLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const daysLeft = daysUntil(property.tenant_move_out);
   const allConfirmed = property.utilities.length > 0 && property.utilities.every((u) => u.status === "Confirmed");
   const confirmedCount = property.utilities.filter((u) => u.status === "Confirmed").length;
@@ -640,6 +644,40 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
               }}>
                 Enable auto-setup
               </button>
+            </div>
+          )}
+
+          {/* Activity log */}
+          {property.activity && property.activity.length > 0 && (
+            <div style={{ borderTop: "1px solid #f2f4f7", marginTop: 4, paddingTop: 4 }}>
+              <button
+                onClick={() => setShowActivity(!showActivity)}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: 12, color: "#98a2b3", padding: "6px 0",
+                  display: "flex", alignItems: "center", gap: 5,
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  style={{ transform: showActivity ? "rotate(90deg)" : "none", transition: "transform 0.15s ease" }}>
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+                Activity ({property.activity.length})
+              </button>
+              {showActivity && (
+                <div style={{ paddingLeft: 12, borderLeft: "2px solid #e9eaec", marginLeft: 4, marginTop: 4, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {property.activity.slice(0, 20).map((a) => (
+                    <div key={a.id} style={{ fontSize: 12, color: "#667085", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{
+                        fontSize: 10, color: "#98a2b3", whiteSpace: "nowrap", minWidth: 60, marginTop: 1,
+                      }}>
+                        {a.timestamp ? new Date(a.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
+                      </span>
+                      <span style={{ color: "#344054" }}>{a.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

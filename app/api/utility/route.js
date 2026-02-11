@@ -1,4 +1,4 @@
-import { updateUtilityTransfer, createUtilityTransfer, deleteUtilityTransfer } from "@/lib/airtable";
+import { updateUtilityTransfer, createUtilityTransfer, deleteUtilityTransfer, logActivity } from "@/lib/airtable";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,11 @@ export async function PATCH(request) {
       const results = await Promise.all(
         body.bulk.map((item) => updateUtilityTransfer(item.recordId, item.fields))
       );
+      for (const r of results) {
+        const changed = body.bulk.find((b) => b.recordId === r.id);
+        const details = Object.entries(changed?.fields || {}).map(([k, v]) => `${k} → ${v}`).join(", ");
+        logActivity({ property_id: r.property_id, utility_id: r.id, action: "field_updated", detail: `${r.utility_type}: ${details}` });
+      }
       return NextResponse.json({ updated: results });
     }
 
@@ -25,6 +30,8 @@ export async function PATCH(request) {
     }
 
     const updated = await updateUtilityTransfer(recordId, fields);
+    const details = Object.entries(fields).map(([k, v]) => `${k} → ${v}`).join(", ");
+    logActivity({ property_id: updated.property_id, utility_id: updated.id, action: "field_updated", detail: `${updated.utility_type}: ${details}` });
     return NextResponse.json(updated);
   } catch (err) {
     console.error("Airtable update error:", err);
@@ -54,6 +61,7 @@ export async function POST(request) {
       provider_phone: body.provider_phone || "",
       provider_website: body.provider_website || "",
     });
+    logActivity({ property_id, utility_id: created.id, action: "utility_added", detail: `${utility_type} added` });
     return NextResponse.json(created);
   } catch (err) {
     console.error("Airtable create error:", err);
@@ -76,7 +84,10 @@ export async function DELETE(request) {
       );
     }
 
+    const propertyId = searchParams.get("propertyId") || "";
+    const utilityType = searchParams.get("utilityType") || "";
     const result = await deleteUtilityTransfer(recordId);
+    logActivity({ property_id: propertyId, utility_id: recordId, action: "utility_removed", detail: `${utilityType || "Utility"} removed` });
     return NextResponse.json(result);
   } catch (err) {
     console.error("Airtable delete error:", err);

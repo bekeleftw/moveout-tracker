@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBase, deleteProperty } from "@/lib/airtable";
+import { getBase, deleteProperty, logActivity } from "@/lib/airtable";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +73,12 @@ export async function POST(request) {
       }));
     }
 
+    // Log activity
+    logActivity({ property_id: pid, action: "property_created", detail: `Property added: ${address}, ${city}, ${state}` });
+    for (const u of createdUtilities) {
+      logActivity({ property_id: pid, utility_id: u.id, action: "utility_added", detail: `${u.utility_type} added (${u.provider_name || "no provider"})` });
+    }
+
     return NextResponse.json({
       property: {
         id: propRecord.id,
@@ -109,6 +115,7 @@ export async function DELETE(request) {
     }
 
     const result = await deleteProperty(recordId, propertyId || "");
+    logActivity({ property_id: propertyId || "", action: "property_deleted", detail: "Property and all utilities removed" });
     return NextResponse.json(result);
   } catch (err) {
     console.error("Delete property error:", err);
