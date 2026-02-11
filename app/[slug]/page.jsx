@@ -180,33 +180,42 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
                 Remove
               </button>
             )}
-            {utility.provider_phone && (
-              <a href={`tel:${utility.provider_phone}`} style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                fontSize: 13, color: "#344054", textDecoration: "none",
-                fontFamily: "'IBM Plex Mono', monospace", fontWeight: 500,
-                padding: "4px 10px", background: "#f9fafb", borderRadius: 6,
-                border: "1px solid #e9eaec",
-              }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
-                </svg>
-                {utility.provider_phone}
-              </a>
-            )}
-            {utility.provider_website && (
-              <a href={utility.provider_website.startsWith("http") ? utility.provider_website : `https://${utility.provider_website}`} target="_blank" rel="noopener noreferrer" style={{
-                fontSize: 12, color: "#667085", textDecoration: "none",
-                padding: "4px 10px", background: "#f9fafb", borderRadius: 6,
-                border: "1px solid #e9eaec",
-                display: "inline-flex", alignItems: "center", gap: 4,
-              }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
-                </svg>
-                Website
-              </a>
-            )}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f9fafb", borderRadius: 6, border: "1px solid #e9eaec", padding: "4px 6px 4px 10px" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#667085" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
+              </svg>
+              <input
+                defaultValue={utility.provider_phone}
+                onBlur={(e) => {
+                  if (e.target.value !== utility.provider_phone) {
+                    handleChange("provider_phone", e.target.value);
+                  }
+                }}
+                placeholder="Phone"
+                style={{
+                  fontSize: 13, color: "#344054", border: "none", background: "transparent",
+                  outline: "none", width: 120, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 500,
+                }}
+              />
+            </div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f9fafb", borderRadius: 6, border: "1px solid #e9eaec", padding: "4px 6px 4px 10px" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#667085" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
+              </svg>
+              <input
+                defaultValue={utility.provider_website}
+                onBlur={(e) => {
+                  if (e.target.value !== utility.provider_website) {
+                    handleChange("provider_website", e.target.value);
+                  }
+                }}
+                placeholder="Website"
+                style={{
+                  fontSize: 12, color: "#667085", border: "none", background: "transparent",
+                  outline: "none", width: 130,
+                }}
+              />
+            </div>
           </div>
         </div>
 
