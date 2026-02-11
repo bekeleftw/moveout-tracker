@@ -46,6 +46,24 @@ async function createProperty(data) {
   return res.json();
 }
 
+async function deleteUtility(recordId) {
+  const res = await fetch(`/api/utility?recordId=${encodeURIComponent(recordId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Delete failed");
+  return res.json();
+}
+
+async function addUtility(data) {
+  const res = await fetch("/api/utility", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Create failed");
+  return res.json();
+}
+
 // --- Components ---
 
 function CompanyLogo({ logoUrl, brandColor, companyName }) {
@@ -78,9 +96,10 @@ function CompanyLogo({ logoUrl, brandColor, companyName }) {
   );
 }
 
-function UtilityRow({ utility, brandColor, onFieldChange }) {
+function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) {
   const [showNotes, setShowNotes] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const icon = UTILITY_ICONS[utility.utility_type] || "\u2699\uFE0F";
   const statusCfg = STATUS_CONFIG[utility.status] || STATUS_CONFIG["Not Started"];
 
@@ -95,11 +114,23 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
     setSaving(false);
   };
 
+  const handleRemove = async () => {
+    if (!confirm(`Remove ${utility.utility_type} from this property?`)) return;
+    setRemoving(true);
+    try {
+      await deleteUtility(utility.id);
+      onRemove(utility.id);
+    } catch (e) {
+      console.error(e);
+    }
+    setRemoving(false);
+  };
+
   return (
     <div style={{
       border: "1px solid #e9eaec", borderRadius: 10, background: "#fff",
       overflow: "hidden", transition: "box-shadow 0.2s ease",
-      opacity: saving ? 0.7 : 1,
+      opacity: saving || removing ? 0.7 : 1,
     }}>
       <div style={{ padding: "14px 16px" }}>
         <div style={{
@@ -119,6 +150,22 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {managing && (
+              <button
+                onClick={handleRemove}
+                disabled={removing}
+                style={{
+                  background: "#fef3f2", color: "#b42318", border: "1px solid #fecdca",
+                  borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600,
+                  cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+                Remove
+              </button>
+            )}
             {utility.provider_phone && (
               <a href={`tel:${utility.provider_phone}`} style={{
                 display: "inline-flex", alignItems: "center", gap: 5,
@@ -233,12 +280,36 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
   );
 }
 
-function PropertyCard({ property, brandColor, onUtilityChange }) {
+function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd }) {
   const [expanded, setExpanded] = useState(true);
+  const [managing, setManaging] = useState(false);
+  const [showAddUtil, setShowAddUtil] = useState(false);
+  const [addingType, setAddingType] = useState("");
+  const [addingLoading, setAddingLoading] = useState(false);
   const daysLeft = daysUntil(property.tenant_move_out);
   const allConfirmed = property.utilities.length > 0 && property.utilities.every((u) => u.status === "Confirmed");
   const confirmedCount = property.utilities.filter((u) => u.status === "Confirmed").length;
   const total = property.utilities.length;
+
+  const existingTypes = property.utilities.map((u) => u.utility_type);
+  const availableTypes = ["Electric", "Gas", "Water", "Internet"].filter((t) => !existingTypes.includes(t));
+
+  const handleAddUtility = async () => {
+    if (!addingType) return;
+    setAddingLoading(true);
+    try {
+      const created = await addUtility({
+        property_id: property.property_id,
+        utility_type: addingType,
+      });
+      onUtilityAdd(property.property_id, created);
+      setAddingType("");
+      setShowAddUtil(false);
+    } catch (e) {
+      console.error(e);
+    }
+    setAddingLoading(false);
+  };
 
   return (
     <div style={{
@@ -324,12 +395,101 @@ function PropertyCard({ property, brandColor, onUtilityChange }) {
 
       {expanded && (
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Manage utilities toggle */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "4px 0",
+          }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setManaging(!managing); if (managing) setShowAddUtil(false); }}
+              style={{
+                background: managing ? "#f9fafb" : "none",
+                border: managing ? "1px solid #d0d5dd" : "1px solid transparent",
+                borderRadius: 6, padding: "4px 10px",
+                fontSize: 12, fontWeight: 500, color: managing ? "#344054" : "#98a2b3",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+                transition: "all 0.15s ease",
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+              {managing ? "Done managing" : "Manage utilities"}
+            </button>
+
+            {managing && availableTypes.length > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowAddUtil(!showAddUtil); }}
+                style={{
+                  background: brandColor, color: "#fff", border: "none",
+                  borderRadius: 6, padding: "4px 10px",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Add utility
+              </button>
+            )}
+          </div>
+
+          {/* Add utility inline form */}
+          {showAddUtil && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 14px", background: "#f9fafb",
+              borderRadius: 8, border: "1px solid #e9eaec",
+            }}>
+              <select
+                value={addingType}
+                onChange={(e) => setAddingType(e.target.value)}
+                style={{
+                  fontSize: 13, padding: "6px 10px", borderRadius: 6,
+                  border: "1px solid #d0d5dd", background: "#fff",
+                  color: addingType ? "#1a1a2e" : "#98a2b3",
+                  cursor: "pointer", outline: "none", flex: 1,
+                }}
+              >
+                <option value="">Select utility type...</option>
+                {availableTypes.map((t) => (
+                  <option key={t} value={t}>{UTILITY_ICONS[t] || "\u2699\uFE0F"} {t}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleAddUtility}
+                disabled={!addingType || addingLoading}
+                style={{
+                  fontSize: 13, fontWeight: 600,
+                  background: brandColor, color: "#fff", border: "none",
+                  borderRadius: 6, padding: "6px 14px", cursor: "pointer",
+                  opacity: !addingType || addingLoading ? 0.5 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {addingLoading ? "Adding..." : "Add"}
+              </button>
+              <button
+                onClick={() => { setShowAddUtil(false); setAddingType(""); }}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: 13, color: "#98a2b3", padding: "6px",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           {property.utilities.map((u) => (
             <UtilityRow
               key={u.id}
               utility={u}
               brandColor={brandColor}
               onFieldChange={onUtilityChange}
+              onRemove={(utilityId) => onUtilityRemove(property.property_id, utilityId)}
+              managing={managing}
             />
           ))}
 
@@ -600,6 +760,34 @@ export default function TrackerPage({ params }) {
     });
   }, []);
 
+  const handleUtilityRemove = useCallback((propertyId, utilityId) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        properties: prev.properties.map((p) =>
+          p.property_id === propertyId
+            ? { ...p, utilities: p.utilities.filter((u) => u.id !== utilityId) }
+            : p
+        ),
+      };
+    });
+  }, []);
+
+  const handleUtilityAdd = useCallback((propertyId, newUtility) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        properties: prev.properties.map((p) =>
+          p.property_id === propertyId
+            ? { ...p, utilities: [...p.utilities, newUtility] }
+            : p
+        ),
+      };
+    });
+  }, []);
+
   if (loading) {
     return (
       <div style={{
@@ -760,6 +948,8 @@ export default function TrackerPage({ params }) {
                 property={p}
                 brandColor={brandColor}
                 onUtilityChange={handleUtilityChange}
+                onUtilityRemove={handleUtilityRemove}
+                onUtilityAdd={handleUtilityAdd}
               />
             ))}
           </div>
