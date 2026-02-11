@@ -741,10 +741,12 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose, template })
     try {
       const fullAddress = `${address}, ${city}, ${state}${zip ? " " + zip : ""}`;
       const data = await lookupProviders(fullAddress);
+      console.log("Lookup response data:", JSON.stringify(data));
 
       const results = [];
       for (const [key, meta] of Object.entries(UTIL_META)) {
         const entry = data[key];
+        console.log(`Checking ${key}:`, entry);
         if (entry && entry.provider_name) {
           results.push({
             type: key,
