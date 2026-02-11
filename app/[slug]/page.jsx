@@ -741,12 +741,10 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose, template })
     try {
       const fullAddress = `${address}, ${city}, ${state}${zip ? " " + zip : ""}`;
       const data = await lookupProviders(fullAddress);
-      console.log("Lookup response data:", JSON.stringify(data));
 
       const results = [];
       for (const [key, meta] of Object.entries(UTIL_META)) {
         const entry = data[key];
-        console.log(`Checking ${key}:`, entry);
         if (entry && entry.provider_name) {
           results.push({
             type: key,
@@ -1002,6 +1000,7 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose, template })
 
 export default function TrackerPage({ params }) {
   const { slug } = params;
+  const [mounted, setMounted] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1012,6 +1011,8 @@ export default function TrackerPage({ params }) {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedUtils, setSelectedUtils] = useState(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     async function load() {
@@ -1140,9 +1141,9 @@ export default function TrackerPage({ params }) {
     });
   }, []);
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
-      <div style={{
+      <div suppressHydrationWarning style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
         flexDirection: "column", gap: 12,
       }}>
