@@ -157,9 +157,19 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
               <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>
                 {utility.utility_type}
               </div>
-              <div style={{ fontSize: 13, color: "#667085" }}>
-                {utility.provider_name}
-              </div>
+              <input
+                defaultValue={utility.provider_name}
+                onBlur={(e) => {
+                  if (e.target.value !== utility.provider_name) {
+                    handleChange("provider_name", e.target.value);
+                  }
+                }}
+                placeholder="Provider name"
+                style={{
+                  fontSize: 13, color: "#667085", border: "none", background: "transparent",
+                  outline: "none", padding: 0, width: "100%",
+                }}
+              />
             </div>
           </div>
 
@@ -303,7 +313,7 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
   );
 }
 
-function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd, onDelete }) {
+function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd, onDelete, onDuplicate }) {
   const [expanded, setExpanded] = useState(true);
   const [managing, setManaging] = useState(false);
   const [showAddUtil, setShowAddUtil] = useState(false);
@@ -411,17 +421,26 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
             </div>
           </div>
 
-          {!allConfirmed && daysLeft <= 7 && (
-            <span style={{
-              fontSize: 11, fontWeight: 700,
-              padding: "3px 8px", borderRadius: 100,
-              background: daysLeft <= 3 ? "#fef3f2" : "#fffaeb",
-              color: daysLeft <= 3 ? "#b42318" : "#b54708",
-              letterSpacing: "0.02em", textTransform: "uppercase",
-            }}>
-              {daysLeft <= 0 ? "Overdue" : `${daysLeft}d left`}
-            </span>
-          )}
+          {property.tenant_move_out && (() => {
+            const urgent = !allConfirmed && daysLeft <= 3;
+            const warning = !allConfirmed && daysLeft <= 7;
+            const soon = !allConfirmed && daysLeft <= 14;
+            const overdue = daysLeft <= 0 && !allConfirmed;
+            const bg = overdue ? "#fef3f2" : urgent ? "#fef3f2" : warning ? "#fffaeb" : soon ? "#eff8ff" : allConfirmed ? "#ecfdf3" : "#f9fafb";
+            const fg = overdue ? "#b42318" : urgent ? "#b42318" : warning ? "#b54708" : soon ? "#175cd3" : allConfirmed ? "#067647" : "#667085";
+            const text = overdue ? "Overdue" : daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `${daysLeft}d left`;
+            return (
+              <span style={{
+                fontSize: 11, fontWeight: 700,
+                padding: "3px 8px", borderRadius: 100,
+                background: bg, color: fg,
+                letterSpacing: "0.02em", textTransform: "uppercase",
+                whiteSpace: "nowrap",
+              }}>
+                {text}
+              </span>
+            );
+          })()}
 
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" strokeWidth="2.5"
             style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }}>
@@ -455,6 +474,21 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
                 {managing ? "Done managing" : "Manage utilities"}
               </button>
               {managing && (
+                <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDuplicate(property); }}
+                  style={{
+                    background: "#eff8ff", color: "#175cd3", border: "1px solid #b2ddff",
+                    borderRadius: 6, padding: "4px 10px",
+                    fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                  Duplicate
+                </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(); }}
                   disabled={deleting}
@@ -470,6 +504,7 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
                   </svg>
                   {deleting ? "Deleting..." : "Delete property"}
                 </button>
+                </>
               )}
             </div>
 
@@ -603,18 +638,30 @@ const inputStyle = {
   boxSizing: "border-box",
 };
 
-function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
+function AddPropertyModal({ companySlug, brandColor, onAdd, onClose, template }) {
   const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
+  const [city, setCity] = useState(template?.city || "");
+  const [state, setState] = useState(template?.state || "");
   const [zip, setZip] = useState("");
   const [moveOut, setMoveOut] = useState("");
   const [loading, setLoading] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [error, setError] = useState(null);
 
-  // foundUtilities: array of { type, label, icon, provider_name, confidence, needs_review, checked }
-  const [foundUtilities, setFoundUtilities] = useState(null);
+  // foundUtilities: array of { type, label, icon, provider_name, provider_phone, provider_website, checked }
+  const [foundUtilities, setFoundUtilities] = useState(() => {
+    if (!template?.utilities?.length) return null;
+    const UTIL_ICONS = { Electric: "\u26A1", Gas: "\uD83D\uDD25", Water: "\uD83D\uDCA7" };
+    return template.utilities.map((u) => ({
+      type: u.utility_type.toLowerCase(),
+      label: u.utility_type,
+      icon: UTIL_ICONS[u.utility_type] || "\u2699\uFE0F",
+      provider_name: u.provider_name || "",
+      provider_phone: u.provider_phone || "",
+      provider_website: u.provider_website || "",
+      checked: true,
+    }));
+  });
 
   const UTIL_META = {
     electric: { label: "Electric", icon: "\u26A1" },
@@ -896,6 +943,9 @@ export default function TrackerPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [addTemplate, setAddTemplate] = useState(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // all, needs_attention, in_progress, confirmed
 
   useEffect(() => {
     async function load() {
@@ -970,6 +1020,15 @@ export default function TrackerPage({ params }) {
     });
   }, []);
 
+  const handleDuplicate = useCallback((property) => {
+    setAddTemplate({
+      city: property.city,
+      state: property.state,
+      utilities: property.utilities,
+    });
+    setShowAdd(true);
+  }, []);
+
   const handleDeleteProperty = useCallback((recordId) => {
     setData((prev) => {
       if (!prev) return prev;
@@ -1028,18 +1087,44 @@ export default function TrackerPage({ params }) {
   const brandColor = company.brand_color || "#1B3E6F";
 
   // Sort properties: closest move-out date first, no date last
-  const properties = [...data.properties].sort((a, b) => {
+  const sortedProperties = [...data.properties].sort((a, b) => {
     if (!a.tenant_move_out && !b.tenant_move_out) return 0;
     if (!a.tenant_move_out) return 1;
     if (!b.tenant_move_out) return -1;
     return new Date(a.tenant_move_out) - new Date(b.tenant_move_out);
   });
 
-  const totalUtils = properties.reduce((acc, p) => acc + p.utilities.length, 0);
-  const confirmedUtils = properties.reduce(
+  // Apply search and filter
+  const properties = sortedProperties.filter((p) => {
+    // Search
+    if (search) {
+      const q = search.toLowerCase();
+      const matchAddr = p.address.toLowerCase().includes(q);
+      const matchCity = p.city.toLowerCase().includes(q);
+      const matchProvider = p.utilities.some((u) =>
+        (u.provider_name || "").toLowerCase().includes(q)
+      );
+      if (!matchAddr && !matchCity && !matchProvider) return false;
+    }
+    // Status filter
+    if (statusFilter === "needs_attention") {
+      const d = daysUntil(p.tenant_move_out);
+      return d <= 7 && !p.utilities.every((u) => u.status === "Confirmed");
+    }
+    if (statusFilter === "in_progress") {
+      return p.utilities.some((u) => u.status !== "Not Started" && u.status !== "Confirmed");
+    }
+    if (statusFilter === "confirmed") {
+      return p.utilities.length > 0 && p.utilities.every((u) => u.status === "Confirmed");
+    }
+    return true;
+  });
+
+  const totalUtils = sortedProperties.reduce((acc, p) => acc + p.utilities.length, 0);
+  const confirmedUtils = sortedProperties.reduce(
     (acc, p) => acc + p.utilities.filter((u) => u.status === "Confirmed").length, 0
   );
-  const urgentCount = properties.filter((p) => {
+  const urgentCount = sortedProperties.filter((p) => {
     const d = daysUntil(p.tenant_move_out);
     return d <= 7 && !p.utilities.every((u) => u.status === "Confirmed");
   }).length;
@@ -1111,23 +1196,111 @@ export default function TrackerPage({ params }) {
               Track and manage utility transfers for your move-outs. Providers auto-identified.
             </p>
           </div>
-          <button onClick={() => setShowAdd(true)} style={{
-            fontSize: 14, fontWeight: 600,
-            background: brandColor, color: "#fff", border: "none",
-            borderRadius: 10, padding: "11px 22px", cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 6,
-            boxShadow: `0 2px 8px ${brandColor}30`,
-            whiteSpace: "nowrap",
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            Add Move-Out
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {sortedProperties.length > 0 && (
+              <button onClick={() => {
+                const rows = [["Address", "City", "State", "Zip", "Move-Out Date", "Utility", "Provider", "Phone", "Website", "Transfer To", "Target Date", "Status", "Notes"]];
+                for (const p of sortedProperties) {
+                  if (p.utilities.length === 0) {
+                    rows.push([p.address, p.city, p.state, p.zip, p.tenant_move_out, "", "", "", "", "", "", "", ""]);
+                  } else {
+                    for (const u of p.utilities) {
+                      rows.push([p.address, p.city, p.state, p.zip, p.tenant_move_out, u.utility_type, u.provider_name, u.provider_phone, u.provider_website, u.transfer_to, u.target_date, u.status, u.notes]);
+                    }
+                  }
+                }
+                const csv = rows.map((r) => r.map((c) => `"${(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `utility-transfers-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }} style={{
+                fontSize: 13, fontWeight: 600,
+                background: "#fff", color: "#344054", border: "1px solid #e9eaec",
+                borderRadius: 10, padding: "10px 18px", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                whiteSpace: "nowrap",
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Export CSV
+              </button>
+            )}
+            <button onClick={() => setShowAdd(true)} style={{
+              fontSize: 14, fontWeight: 600,
+              background: brandColor, color: "#fff", border: "none",
+              borderRadius: 10, padding: "11px 22px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6,
+              boxShadow: `0 2px 8px ${brandColor}30`,
+              whiteSpace: "nowrap",
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Add Move-Out
+            </button>
+          </div>
         </div>
 
+        {/* Search & filter bar */}
+        {sortedProperties.length > 0 && (
+          <div style={{
+            display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center",
+          }}>
+            <div style={{
+              flex: "1 1 220px", display: "flex", alignItems: "center", gap: 8,
+              background: "#fff", border: "1px solid #e9eaec", borderRadius: 8,
+              padding: "8px 12px",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search address, city, or provider..."
+                style={{
+                  border: "none", outline: "none", background: "transparent",
+                  fontSize: 13, color: "#344054", width: "100%",
+                }}
+              />
+              {search && (
+                <button onClick={() => setSearch("")} style={{
+                  background: "none", border: "none", cursor: "pointer", padding: 0,
+                  color: "#98a2b3", fontSize: 16, lineHeight: 1,
+                }}>&times;</button>
+              )}
+            </div>
+            {[
+              { key: "all", label: "All" },
+              { key: "needs_attention", label: "Needs Attention" },
+              { key: "in_progress", label: "In Progress" },
+              { key: "confirmed", label: "Confirmed" },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setStatusFilter(f.key)}
+                style={{
+                  fontSize: 12, fontWeight: 600, padding: "7px 14px",
+                  borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap",
+                  border: statusFilter === f.key ? `1px solid ${brandColor}` : "1px solid #e9eaec",
+                  background: statusFilter === f.key ? `${brandColor}10` : "#fff",
+                  color: statusFilter === f.key ? brandColor : "#667085",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Property cards */}
-        {properties.length === 0 ? (
+        {properties.length === 0 && !search && statusFilter === "all" ? (
           <div style={{
             background: "#fff", borderRadius: 14, border: "1px solid #e2e4e9",
             padding: "48px 24px", textAlign: "center",
@@ -1140,6 +1313,19 @@ export default function TrackerPage({ params }) {
               Click "Add Move-Out" to start tracking utility transfers for a property.
             </div>
           </div>
+        ) : properties.length === 0 ? (
+          <div style={{
+            background: "#fff", borderRadius: 14, border: "1px solid #e2e4e9",
+            padding: "36px 24px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 14, color: "#667085" }}>
+              No properties match your {search ? "search" : "filter"}.
+            </div>
+            <button onClick={() => { setSearch(""); setStatusFilter("all"); }} style={{
+              marginTop: 10, fontSize: 13, color: brandColor, background: "none",
+              border: "none", cursor: "pointer", fontWeight: 600,
+            }}>Clear filters</button>
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {properties.map((p) => (
@@ -1151,6 +1337,7 @@ export default function TrackerPage({ params }) {
                 onUtilityRemove={handleUtilityRemove}
                 onUtilityAdd={handleUtilityAdd}
                 onDelete={handleDeleteProperty}
+                onDuplicate={handleDuplicate}
               />
             ))}
           </div>
@@ -1192,7 +1379,8 @@ export default function TrackerPage({ params }) {
           companySlug={slug}
           brandColor={brandColor}
           onAdd={handleAddProperty}
-          onClose={() => setShowAdd(false)}
+          onClose={() => { setShowAdd(false); setAddTemplate(null); }}
+          template={addTemplate}
         />
       )}
 
