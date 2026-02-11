@@ -570,7 +570,6 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
     electric: { label: "Electric", icon: "\u26A1" },
     gas: { label: "Gas", icon: "\uD83D\uDD25" },
     water: { label: "Water", icon: "\uD83D\uDCA7" },
-    sewer: { label: "Sewer", icon: "\uD83D\uDEBF" },
   };
 
   const canLookup = address && city && state;
@@ -620,6 +619,12 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
   const toggleUtility = (type) => {
     setFoundUtilities((prev) =>
       prev.map((u) => u.type === type ? { ...u, checked: !u.checked } : u)
+    );
+  };
+
+  const updateProviderName = (type, name) => {
+    setFoundUtilities((prev) =>
+      prev.map((u) => u.type === type ? { ...u, provider_name: name } : u)
     );
   };
 
@@ -769,28 +774,20 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
                     />
                     <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>{u.icon}</span>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{u.label}</div>
-                      {u.provider_name && (
-                        <div style={{ fontSize: 12, color: "#667085", marginTop: 1 }}>
-                          {u.provider_name}
-                          {u.needs_review && (
-                            <span style={{
-                              marginLeft: 6, fontSize: 10, fontWeight: 700,
-                              padding: "1px 5px", borderRadius: 4,
-                              background: "#fffaeb", color: "#b54708",
-                            }}>Needs review</span>
-                          )}
-                        </div>
-                      )}
+                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{u.label}</div>
+                      <input
+                        value={u.provider_name}
+                        onChange={(e) => updateProviderName(u.type, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Provider name"
+                        style={{
+                          fontSize: 12, padding: "4px 8px", borderRadius: 5,
+                          border: "1px solid #e9eaec", background: "#fff",
+                          color: "#344054", width: "100%", outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
                     </div>
-                    {u.confidence != null && (
-                      <span style={{
-                        fontSize: 11, color: u.confidence >= 0.8 ? "#067647" : "#b54708",
-                        fontWeight: 600,
-                      }}>
-                        {Math.round(u.confidence * 100)}%
-                      </span>
-                    )}
                   </label>
                 ))}
               </div>
