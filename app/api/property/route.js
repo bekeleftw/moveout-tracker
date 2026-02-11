@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBase } from "@/lib/airtable";
+import { getBase, deleteProperty } from "@/lib/airtable";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +90,30 @@ export async function POST(request) {
     console.error("Create property error:", err);
     return NextResponse.json(
       { error: String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const recordId = searchParams.get("recordId");
+    const propertyId = searchParams.get("propertyId");
+
+    if (!recordId) {
+      return NextResponse.json(
+        { error: "Missing recordId" },
+        { status: 400 }
+      );
+    }
+
+    const result = await deleteProperty(recordId, propertyId || "");
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error("Delete property error:", err);
+    return NextResponse.json(
+      { error: "Failed to delete property" },
       { status: 500 }
     );
   }

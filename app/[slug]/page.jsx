@@ -64,6 +64,14 @@ async function addUtility(data) {
   return res.json();
 }
 
+async function removeProperty(recordId, propertyId) {
+  const params = new URLSearchParams({ recordId });
+  if (propertyId) params.set("propertyId", propertyId);
+  const res = await fetch(`/api/property?${params}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Delete failed");
+  return res.json();
+}
+
 async function lookupProviders(address) {
   const res = await fetch(`/api/lookup?address=${encodeURIComponent(address)}`);
   if (!res.ok) throw new Error("Lookup failed");
@@ -286,12 +294,13 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
   );
 }
 
-function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd }) {
+function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd, onDelete }) {
   const [expanded, setExpanded] = useState(true);
   const [managing, setManaging] = useState(false);
   const [showAddUtil, setShowAddUtil] = useState(false);
   const [addingType, setAddingType] = useState("");
   const [addingLoading, setAddingLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const daysLeft = daysUntil(property.tenant_move_out);
   const allConfirmed = property.utilities.length > 0 && property.utilities.every((u) => u.status === "Confirmed");
   const confirmedCount = property.utilities.filter((u) => u.status === "Confirmed").length;
@@ -317,11 +326,24 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
     setAddingLoading(false);
   };
 
+  const handleDelete = async () => {
+    if (!confirm(`Delete "${property.address}" and all its utility records? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await removeProperty(property.id, property.property_id);
+      onDelete(property.id);
+    } catch (e) {
+      console.error(e);
+    }
+    setDeleting(false);
+  };
+
   return (
     <div style={{
       background: "#fff", borderRadius: 14,
       border: allConfirmed ? "1px solid #b8e6c8" : "1px solid #e2e4e9",
       overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+      opacity: deleting ? 0.5 : 1, transition: "opacity 0.2s ease",
     }}>
       <div
         onClick={() => setExpanded(!expanded)}
@@ -406,22 +428,41 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "4px 0",
           }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); setManaging(!managing); if (managing) setShowAddUtil(false); }}
-              style={{
-                background: managing ? "#f9fafb" : "none",
-                border: managing ? "1px solid #d0d5dd" : "1px solid transparent",
-                borderRadius: 6, padding: "4px 10px",
-                fontSize: 12, fontWeight: 500, color: managing ? "#344054" : "#98a2b3",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
-                transition: "all 0.15s ease",
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-              </svg>
-              {managing ? "Done managing" : "Manage utilities"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); setManaging(!managing); if (managing) setShowAddUtil(false); }}
+                style={{
+                  background: managing ? "#f9fafb" : "none",
+                  border: managing ? "1px solid #d0d5dd" : "1px solid transparent",
+                  borderRadius: 6, padding: "4px 10px",
+                  fontSize: 12, fontWeight: 500, color: managing ? "#344054" : "#98a2b3",
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+                {managing ? "Done managing" : "Manage utilities"}
+              </button>
+              {managing && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                  disabled={deleting}
+                  style={{
+                    background: "#fef3f2", color: "#b42318", border: "1px solid #fecdca",
+                    borderRadius: 6, padding: "4px 10px",
+                    fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                  </svg>
+                  {deleting ? "Deleting..." : "Delete property"}
+                </button>
+              )}
+            </div>
 
             {managing && availableTypes.length > 0 && (
               <button
@@ -920,6 +961,16 @@ export default function TrackerPage({ params }) {
     });
   }, []);
 
+  const handleDeleteProperty = useCallback((recordId) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        properties: prev.properties.filter((p) => p.id !== recordId),
+      };
+    });
+  }, []);
+
   if (loading) {
     return (
       <div style={{
@@ -964,8 +1015,16 @@ export default function TrackerPage({ params }) {
     );
   }
 
-  const { company, properties } = data;
+  const { company } = data;
   const brandColor = company.brand_color || "#1B3E6F";
+
+  // Sort properties: closest move-out date first, no date last
+  const properties = [...data.properties].sort((a, b) => {
+    if (!a.tenant_move_out && !b.tenant_move_out) return 0;
+    if (!a.tenant_move_out) return 1;
+    if (!b.tenant_move_out) return -1;
+    return new Date(a.tenant_move_out) - new Date(b.tenant_move_out);
+  });
 
   const totalUtils = properties.reduce((acc, p) => acc + p.utilities.length, 0);
   const confirmedUtils = properties.reduce(
@@ -1082,6 +1141,7 @@ export default function TrackerPage({ params }) {
                 onUtilityChange={handleUtilityChange}
                 onUtilityRemove={handleUtilityRemove}
                 onUtilityAdd={handleUtilityAdd}
+                onDelete={handleDeleteProperty}
               />
             ))}
           </div>
