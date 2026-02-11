@@ -14,10 +14,11 @@ export async function GET(request) {
       );
     }
 
-    const apiUrl = process.env.UTILITY_API_URL;
+    const apiUrl = (process.env.UTILITY_API_URL || "").replace(/\/+$/, "");
     const apiKey = process.env.UTILITY_API_KEY;
 
     if (!apiUrl || !apiKey) {
+      console.error("Utility lookup not configured:", { hasUrl: !!apiUrl, hasKey: !!apiKey });
       return NextResponse.json(
         { error: "Utility lookup API not configured" },
         { status: 500 }
@@ -25,13 +26,14 @@ export async function GET(request) {
     }
 
     const url = `${apiUrl}/lookup?address=${encodeURIComponent(address)}`;
+    console.log("Utility lookup request:", url);
     const res = await fetch(url, {
       headers: { "X-API-Key": apiKey },
     });
 
     if (!res.ok) {
       const text = await res.text();
-      console.error("Utility lookup error:", res.status, text);
+      console.error("Utility lookup error:", res.status, text, "URL:", url);
       return NextResponse.json(
         { error: `Lookup failed (${res.status})` },
         { status: res.status }

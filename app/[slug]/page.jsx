@@ -14,9 +14,11 @@ const UTILITY_ICONS = { Electric: "\u26A1", Gas: "\uD83D\uDD25", Water: "\uD83D\
 
 function daysUntil(dateStr) {
   if (!dateStr) return 999;
-  const d = new Date(dateStr);
+  const d = new Date(dateStr + "T00:00:00");
   const now = new Date();
-  return Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
 }
 
 function formatDate(dateStr) {
@@ -408,7 +410,7 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
               {property.tenant_move_out && (
                 <>
                   <span style={{ color: "#d0d5dd" }}>|</span>
-                  <span>Move-out: {formatDate(property.tenant_move_out)}</span>
+                  <span suppressHydrationWarning>Move-out: {formatDate(property.tenant_move_out)}</span>
                 </>
               )}
             </div>
@@ -444,7 +446,7 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
             const fg = overdue ? "#b42318" : urgent ? "#b42318" : warning ? "#b54708" : soon ? "#175cd3" : allConfirmed ? "#067647" : "#667085";
             const text = overdue ? "Overdue" : daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `${daysLeft}d left`;
             return (
-              <span style={{
+              <span suppressHydrationWarning style={{
                 fontSize: 11, fontWeight: 700,
                 padding: "3px 8px", borderRadius: 100,
                 background: bg, color: fg,
@@ -668,7 +670,7 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
                 <div style={{ paddingLeft: 12, borderLeft: "2px solid #e9eaec", marginLeft: 4, marginTop: 4, display: "flex", flexDirection: "column", gap: 6 }}>
                   {property.activity.slice(0, 20).map((a) => (
                     <div key={a.id} style={{ fontSize: 12, color: "#667085", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                      <span style={{
+                      <span suppressHydrationWarning style={{
                         fontSize: 10, color: "#98a2b3", whiteSpace: "nowrap", minWidth: 60, marginTop: 1,
                       }}>
                         {a.timestamp ? new Date(a.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}

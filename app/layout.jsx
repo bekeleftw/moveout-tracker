@@ -5,7 +5,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap"
@@ -16,7 +16,7 @@ export default function RootLayout({ children }) {
           body { font-family: 'IBM Plex Sans', sans-serif; background: #f8f9fb; -webkit-font-smoothing: antialiased; }
         `}</style>
       </head>
-      <body>{children}</body>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }
