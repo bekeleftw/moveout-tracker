@@ -29,6 +29,7 @@ export async function GET(request) {
     console.log("Utility lookup request:", url);
     const res = await fetch(url, {
       headers: { "X-API-Key": apiKey },
+      cache: "no-store",
     });
 
     if (!res.ok) {
