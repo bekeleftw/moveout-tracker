@@ -36,20 +36,45 @@ async function updateUtility(recordId, fields) {
   return res.json();
 }
 
+async function createProperty(data) {
+  const res = await fetch("/api/property", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Create failed");
+  return res.json();
+}
+
 // --- Components ---
 
-function StatusBadge({ status }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["Not Started"];
+function CompanyLogo({ logoUrl, brandColor, companyName }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!logoUrl || imgError) {
+    return (
+      <div style={{
+        width: 34, height: 34, borderRadius: 8, background: brandColor,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: "#fff", fontSize: 16, fontWeight: 700,
+      }}>
+        {companyName?.charAt(0) || "U"}
+      </div>
+    );
+  }
+
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "3px 10px 3px 8px", borderRadius: 100,
-      background: cfg.bg, color: cfg.color,
-      fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+    <div style={{
+      width: 34, height: 34, borderRadius: 8,
+      overflow: "hidden", border: "1px solid #e9eaec",
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: 3, background: cfg.dot }} />
-      {cfg.label}
-    </span>
+      <img
+        src={logoUrl}
+        alt=""
+        onError={() => setImgError(true)}
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      />
+    </div>
   );
 }
 
@@ -76,9 +101,7 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
       overflow: "hidden", transition: "box-shadow 0.2s ease",
       opacity: saving ? 0.7 : 1,
     }}>
-      {/* Desktop layout */}
       <div style={{ padding: "14px 16px" }}>
-        {/* Top: provider info + contact */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           flexWrap: "wrap", gap: 10, marginBottom: 12,
@@ -111,7 +134,7 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
               </a>
             )}
             {utility.provider_website && (
-              <a href={utility.provider_website} target="_blank" rel="noopener noreferrer" style={{
+              <a href={utility.provider_website.startsWith("http") ? utility.provider_website : `https://${utility.provider_website}`} target="_blank" rel="noopener noreferrer" style={{
                 fontSize: 12, color: "#667085", textDecoration: "none",
                 padding: "4px 10px", background: "#f9fafb", borderRadius: 6,
                 border: "1px solid #e9eaec",
@@ -126,7 +149,6 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
           </div>
         </div>
 
-        {/* Bottom: controls row */}
         <div style={{
           display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
         }}>
@@ -176,7 +198,6 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
         </div>
       </div>
 
-      {/* Notes toggle */}
       <div style={{ borderTop: "1px solid #f2f4f7", padding: "0 16px" }}>
         <button onClick={() => setShowNotes(!showNotes)} style={{
           background: "none", border: "none", cursor: "pointer",
@@ -215,7 +236,7 @@ function UtilityRow({ utility, brandColor, onFieldChange }) {
 function PropertyCard({ property, brandColor, onUtilityChange }) {
   const [expanded, setExpanded] = useState(true);
   const daysLeft = daysUntil(property.tenant_move_out);
-  const allConfirmed = property.utilities.every((u) => u.status === "Confirmed");
+  const allConfirmed = property.utilities.length > 0 && property.utilities.every((u) => u.status === "Confirmed");
   const confirmedCount = property.utilities.filter((u) => u.status === "Confirmed").length;
   const total = property.utilities.length;
 
@@ -225,7 +246,6 @@ function PropertyCard({ property, brandColor, onUtilityChange }) {
       border: allConfirmed ? "1px solid #b8e6c8" : "1px solid #e2e4e9",
       overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
     }}>
-      {/* Header */}
       <div
         onClick={() => setExpanded(!expanded)}
         style={{
@@ -302,7 +322,6 @@ function PropertyCard({ property, brandColor, onUtilityChange }) {
         </div>
       </div>
 
-      {/* Utilities */}
       {expanded && (
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
           {property.utilities.map((u) => (
@@ -313,6 +332,16 @@ function PropertyCard({ property, brandColor, onUtilityChange }) {
               onFieldChange={onUtilityChange}
             />
           ))}
+
+          {property.utilities.length === 0 && (
+            <div style={{
+              padding: "20px", textAlign: "center",
+              fontSize: 13, color: "#98a2b3",
+              background: "#f9fafb", borderRadius: 8,
+            }}>
+              No utilities tracked yet for this property.
+            </div>
+          )}
 
           {allConfirmed && (
             <div style={{
@@ -347,6 +376,176 @@ function PropertyCard({ property, brandColor, onUtilityChange }) {
   );
 }
 
+const inputStyle = {
+  fontSize: 14,
+  padding: "9px 12px",
+  borderRadius: 8,
+  border: "1px solid #d0d5dd",
+  color: "#1a1a2e",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
+  const [moveOut, setMoveOut] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Utility checkboxes
+  const [electric, setElectric] = useState(true);
+  const [gas, setGas] = useState(true);
+  const [water, setWater] = useState(true);
+
+  const handleSubmit = async () => {
+    if (!address || !city || !state) return;
+    setLoading(true);
+    setError(null);
+
+    const utilities = [];
+    if (electric) utilities.push({ utility_type: "Electric", provider_name: "Looking up..." });
+    if (gas) utilities.push({ utility_type: "Gas", provider_name: "Looking up..." });
+    if (water) utilities.push({ utility_type: "Water", provider_name: "Looking up..." });
+
+    try {
+      const res = await createProperty({
+        company_slug: companySlug,
+        address,
+        city,
+        state,
+        zip,
+        tenant_move_out: moveOut || null,
+        utilities,
+      });
+      onAdd(res.property);
+      onClose();
+    } catch (e) {
+      setError("Failed to create property. Please try again.");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000,
+    }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: 16, padding: 28, width: 440,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+        maxHeight: "90vh", overflowY: "auto",
+      }}>
+        <h3 style={{
+          fontSize: 18, fontWeight: 700, color: "#1a1a2e",
+          margin: "0 0 20px",
+        }}>Add Move-Out Property</h3>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input
+            placeholder="Street address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            style={inputStyle}
+          />
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              placeholder="City"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              style={{ ...inputStyle, flex: 2 }}
+            />
+            <input
+              placeholder="State"
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <input
+              placeholder="Zip"
+              value={zip}
+              onChange={(e) => setZip(e.target.value)}
+              style={{ ...inputStyle, flex: 1 }}
+            />
+          </div>
+          <div>
+            <label style={{
+              fontSize: 12, color: "#667085",
+              display: "block", marginBottom: 4,
+            }}>Tenant move-out date</label>
+            <input
+              type="date"
+              value={moveOut}
+              onChange={(e) => setMoveOut(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Utility checkboxes */}
+          <div>
+            <label style={{
+              fontSize: 12, color: "#667085",
+              display: "block", marginBottom: 8,
+            }}>Utilities to track</label>
+            <div style={{ display: "flex", gap: 16 }}>
+              {[
+                { label: "Electric", icon: "\u26A1", checked: electric, set: setElectric },
+                { label: "Gas", icon: "\uD83D\uDD25", checked: gas, set: setGas },
+                { label: "Water", icon: "\uD83D\uDCA7", checked: water, set: setWater },
+              ].map((u) => (
+                <label key={u.label} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontSize: 14, color: "#344054", cursor: "pointer",
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={u.checked}
+                    onChange={(e) => u.set(e.target.checked)}
+                    style={{ width: 16, height: 16, cursor: "pointer" }}
+                  />
+                  <span>{u.icon}</span>
+                  {u.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div style={{
+            marginTop: 12, fontSize: 13, color: "#b42318",
+            padding: "8px 12px", background: "#fef3f2", borderRadius: 6,
+          }}>{error}</div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{
+            fontSize: 14, fontWeight: 500,
+            background: "#f9fafb", color: "#344054", border: "1px solid #d0d5dd",
+            borderRadius: 8, padding: "9px 18px", cursor: "pointer",
+          }}>Cancel</button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !address || !city || !state}
+            style={{
+              fontSize: 14, fontWeight: 600,
+              background: brandColor, color: "#fff", border: "none",
+              borderRadius: 8, padding: "9px 18px", cursor: "pointer",
+              opacity: loading || !address || !city || !state ? 0.5 : 1,
+            }}
+          >
+            {loading ? "Adding..." : "Add Property"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Main Page ---
 
 export default function TrackerPage({ params }) {
@@ -354,6 +553,7 @@ export default function TrackerPage({ params }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -390,7 +590,16 @@ export default function TrackerPage({ params }) {
     });
   }, []);
 
-  // Loading state
+  const handleAddProperty = useCallback((newProperty) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        properties: [...prev.properties, newProperty],
+      };
+    });
+  }, []);
+
   if (loading) {
     return (
       <div style={{
@@ -408,7 +617,6 @@ export default function TrackerPage({ params }) {
     );
   }
 
-  // Not found
   if (error === "not_found") {
     return (
       <div style={{
@@ -424,7 +632,6 @@ export default function TrackerPage({ params }) {
     );
   }
 
-  // Error
   if (error) {
     return (
       <div style={{
@@ -459,27 +666,11 @@ export default function TrackerPage({ params }) {
         flexWrap: "wrap", gap: 12,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {company.logo_url ? (
-            <div style={{
-              width: 34, height: 34, borderRadius: 8, background: brandColor,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              overflow: "hidden",
-            }}>
-              <img
-                src={company.logo_url}
-                alt=""
-                style={{ width: 22, height: 22, objectFit: "contain", filter: "brightness(10)" }}
-              />
-            </div>
-          ) : (
-            <div style={{
-              width: 34, height: 34, borderRadius: 8, background: brandColor,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontSize: 16, fontWeight: 700,
-            }}>
-              {company.company_name?.charAt(0) || "U"}
-            </div>
-          )}
+          <CompanyLogo
+            logoUrl={company.logo_url}
+            brandColor={brandColor}
+            companyName={company.company_name}
+          />
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#1a1a2e" }}>
               {company.company_name}
@@ -519,14 +710,32 @@ export default function TrackerPage({ params }) {
           ))}
         </div>
 
-        {/* Header */}
-        <div style={{ marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: 0 }}>
-            Vacancy Utility Transfers
-          </h1>
-          <p style={{ fontSize: 14, color: "#667085", margin: "4px 0 0" }}>
-            Track and manage utility transfers for your move-outs. Providers auto-identified.
-          </p>
+        {/* Header + add button */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 16, flexWrap: "wrap", gap: 12,
+        }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: 0 }}>
+              Vacancy Utility Transfers
+            </h1>
+            <p style={{ fontSize: 14, color: "#667085", margin: "4px 0 0" }}>
+              Track and manage utility transfers for your move-outs. Providers auto-identified.
+            </p>
+          </div>
+          <button onClick={() => setShowAdd(true)} style={{
+            fontSize: 14, fontWeight: 600,
+            background: brandColor, color: "#fff", border: "none",
+            borderRadius: 10, padding: "11px 22px", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 6,
+            boxShadow: `0 2px 8px ${brandColor}30`,
+            whiteSpace: "nowrap",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Add Move-Out
+          </button>
         </div>
 
         {/* Property cards */}
@@ -540,14 +749,14 @@ export default function TrackerPage({ params }) {
               No move-outs being tracked yet
             </div>
             <div style={{ fontSize: 14, color: "#667085", marginTop: 4 }}>
-              Properties will appear here when we detect vacancies in your portfolio.
+              Click "Add Move-Out" to start tracking utility transfers for a property.
             </div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {properties.map((p) => (
               <PropertyCard
-                key={p.id}
+                key={p.id || p.property_id}
                 property={p}
                 brandColor={brandColor}
                 onUtilityChange={handleUtilityChange}
@@ -586,6 +795,15 @@ export default function TrackerPage({ params }) {
           </button>
         </div>
       </div>
+
+      {showAdd && (
+        <AddPropertyModal
+          companySlug={slug}
+          brandColor={brandColor}
+          onAdd={handleAddProperty}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
 
       <style>{`
         select:focus, input:focus { border-color: ${brandColor}80 !important; box-shadow: 0 0 0 3px ${brandColor}15; }
