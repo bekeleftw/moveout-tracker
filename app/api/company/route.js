@@ -19,9 +19,6 @@ export async function GET(request) {
     return NextResponse.json(data);
   } catch (err) {
     console.error("Airtable error:", err);
-    return NextResponse.json(
-      { error: "Failed to load data" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message || "Failed to load data" }, { status: 500 });
   }
 }
