@@ -101,11 +101,11 @@ function CompanyLogo({ logoUrl, brandColor, companyName }) {
   if (!logoUrl || imgError) {
     return (
       <div style={{
-        width: 34, height: 34, borderRadius: 8, background: brandColor,
+        width: 34, height: 34, borderRadius: 8, background: brandColor || "#333333",
         display: "flex", alignItems: "center", justifyContent: "center",
         color: "#fff", fontSize: 16, fontWeight: 700,
       }}>
-        {companyName?.charAt(0) || "U"}
+        {(companyName?.charAt(0) || "U").toUpperCase()}
       </div>
     );
   }
