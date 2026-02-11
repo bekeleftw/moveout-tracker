@@ -72,6 +72,16 @@ async function removeProperty(recordId, propertyId) {
   return res.json();
 }
 
+async function bulkUpdateUtilities(items) {
+  const res = await fetch("/api/utility", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bulk: items }),
+  });
+  if (!res.ok) throw new Error("Bulk update failed");
+  return res.json();
+}
+
 async function lookupProviders(address) {
   const res = await fetch(`/api/lookup?address=${encodeURIComponent(address)}`);
   if (!res.ok) throw new Error("Lookup failed");
@@ -313,7 +323,7 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
   );
 }
 
-function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd, onDelete, onDuplicate }) {
+function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd, onDelete, onDuplicate, bulkMode, selectedUtils, onToggleSelect }) {
   const [expanded, setExpanded] = useState(true);
   const [managing, setManaging] = useState(false);
   const [showAddUtil, setShowAddUtil] = useState(false);
@@ -574,14 +584,25 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
           )}
 
           {property.utilities.map((u) => (
-            <UtilityRow
-              key={u.id}
-              utility={u}
-              brandColor={brandColor}
-              onFieldChange={onUtilityChange}
-              onRemove={(utilityId) => onUtilityRemove(property.property_id, utilityId)}
-              managing={managing}
-            />
+            <div key={u.id} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              {bulkMode && (
+                <input
+                  type="checkbox"
+                  checked={selectedUtils.has(u.id)}
+                  onChange={() => onToggleSelect(u.id)}
+                  style={{ width: 18, height: 18, cursor: "pointer", marginTop: 18, flexShrink: 0 }}
+                />
+              )}
+              <div style={{ flex: 1 }}>
+                <UtilityRow
+                  utility={u}
+                  brandColor={brandColor}
+                  onFieldChange={onUtilityChange}
+                  onRemove={(utilityId) => onUtilityRemove(property.property_id, utilityId)}
+                  managing={managing}
+                />
+              </div>
+            </div>
           ))}
 
           {property.utilities.length === 0 && (
@@ -946,6 +967,9 @@ export default function TrackerPage({ params }) {
   const [addTemplate, setAddTemplate] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // all, needs_attention, in_progress, confirmed
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedUtils, setSelectedUtils] = useState(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -1028,6 +1052,41 @@ export default function TrackerPage({ params }) {
     });
     setShowAdd(true);
   }, []);
+
+  const toggleSelectUtil = useCallback((utilId) => {
+    setSelectedUtils((prev) => {
+      const next = new Set(prev);
+      if (next.has(utilId)) next.delete(utilId);
+      else next.add(utilId);
+      return next;
+    });
+  }, []);
+
+  const handleBulkStatus = useCallback(async (status) => {
+    if (selectedUtils.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      const items = [...selectedUtils].map((id) => ({ recordId: id, fields: { status } }));
+      await bulkUpdateUtilities(items);
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          properties: prev.properties.map((p) => ({
+            ...p,
+            utilities: p.utilities.map((u) =>
+              selectedUtils.has(u.id) ? { ...u, status } : u
+            ),
+          })),
+        };
+      });
+      setSelectedUtils(new Set());
+      setBulkMode(false);
+    } catch (e) {
+      console.error(e);
+    }
+    setBulkUpdating(false);
+  }, [selectedUtils]);
 
   const handleDeleteProperty = useCallback((recordId) => {
     setData((prev) => {
@@ -1296,6 +1355,19 @@ export default function TrackerPage({ params }) {
                 {f.label}
               </button>
             ))}
+            <button
+              onClick={() => { setBulkMode(!bulkMode); if (bulkMode) setSelectedUtils(new Set()); }}
+              style={{
+                fontSize: 12, fontWeight: 600, padding: "7px 14px",
+                borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap",
+                border: bulkMode ? `1px solid ${brandColor}` : "1px solid #e9eaec",
+                background: bulkMode ? `${brandColor}10` : "#fff",
+                color: bulkMode ? brandColor : "#667085",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {bulkMode ? "Cancel Bulk" : "Bulk Update"}
+            </button>
           </div>
         )}
 
@@ -1338,6 +1410,9 @@ export default function TrackerPage({ params }) {
                 onUtilityAdd={handleUtilityAdd}
                 onDelete={handleDeleteProperty}
                 onDuplicate={handleDuplicate}
+                bulkMode={bulkMode}
+                selectedUtils={selectedUtils}
+                onToggleSelect={toggleSelectUtil}
               />
             ))}
           </div>
@@ -1382,6 +1457,36 @@ export default function TrackerPage({ params }) {
           onClose={() => { setShowAdd(false); setAddTemplate(null); }}
           template={addTemplate}
         />
+      )}
+
+      {/* Bulk action bar */}
+      {bulkMode && selectedUtils.size > 0 && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: "#1a1a2e", color: "#fff", borderRadius: 12,
+          padding: "12px 20px", display: "flex", alignItems: "center", gap: 14,
+          boxShadow: "0 8px 30px rgba(0,0,0,0.25)", zIndex: 999,
+          fontSize: 13, fontWeight: 500,
+        }}>
+          <span>{selectedUtils.size} selected</span>
+          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.2)" }} />
+          {["Not Started", "Called", "Scheduled", "Confirmed"].map((s) => (
+            <button
+              key={s}
+              onClick={() => handleBulkStatus(s)}
+              disabled={bulkUpdating}
+              style={{
+                fontSize: 12, fontWeight: 600, padding: "6px 12px",
+                borderRadius: 6, cursor: "pointer", border: "none",
+                background: s === "Confirmed" ? "#17b26a" : "rgba(255,255,255,0.12)",
+                color: "#fff", whiteSpace: "nowrap",
+                opacity: bulkUpdating ? 0.5 : 1,
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
       )}
 
       <style>{`

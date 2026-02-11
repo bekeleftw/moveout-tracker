@@ -6,6 +6,15 @@ export const dynamic = "force-dynamic";
 export async function PATCH(request) {
   try {
     const body = await request.json();
+
+    // Bulk update: { bulk: [{ recordId, fields }] }
+    if (body.bulk && Array.isArray(body.bulk)) {
+      const results = await Promise.all(
+        body.bulk.map((item) => updateUtilityTransfer(item.recordId, item.fields))
+      );
+      return NextResponse.json({ updated: results });
+    }
+
     const { recordId, fields } = body;
 
     if (!recordId || !fields) {
