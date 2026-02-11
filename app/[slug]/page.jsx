@@ -593,8 +593,8 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
             label: meta.label,
             icon: meta.icon,
             provider_name: entry.provider_name,
-            confidence: entry.confidence,
-            needs_review: entry.needs_review,
+            provider_phone: entry.phone || "",
+            provider_website: entry.website || "",
             checked: true,
           });
         }
@@ -608,9 +608,9 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
       setError("Provider lookup failed. You can still add the property with default utilities.");
       // Fall back to manual checkboxes
       setFoundUtilities([
-        { type: "electric", label: "Electric", icon: "\u26A1", provider_name: "", confidence: null, needs_review: false, checked: true },
-        { type: "gas", label: "Gas", icon: "\uD83D\uDD25", provider_name: "", confidence: null, needs_review: false, checked: true },
-        { type: "water", label: "Water", icon: "\uD83D\uDCA7", provider_name: "", confidence: null, needs_review: false, checked: true },
+        { type: "electric", label: "Electric", icon: "\u26A1", provider_name: "", provider_phone: "", provider_website: "", checked: true },
+        { type: "gas", label: "Gas", icon: "\uD83D\uDD25", provider_name: "", provider_phone: "", provider_website: "", checked: true },
+        { type: "water", label: "Water", icon: "\uD83D\uDCA7", provider_name: "", provider_phone: "", provider_website: "", checked: true },
       ]);
     }
     setLookingUp(false);
@@ -638,6 +638,8 @@ function AddPropertyModal({ companySlug, brandColor, onAdd, onClose }) {
       .map((u) => ({
         utility_type: u.label,
         provider_name: u.provider_name || "",
+        provider_phone: u.provider_phone || "",
+        provider_website: u.provider_website || "",
       }));
 
     try {
