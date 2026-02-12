@@ -37,7 +37,8 @@ export default function RootLayout({ children }) {
             .mot-card-bottom-row { display: flex !important; align-items: center !important; justify-content: space-between !important; }
             .mot-util-controls { flex-direction: column !important; }
             .mot-util-controls > select,
-            .mot-util-controls > input { width: 100% !important; min-width: 0 !important; }
+            .mot-util-controls > input,
+            .mot-util-controls > div { width: 100% !important; min-width: 0 !important; }
             .mot-filter-row { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; }
             .mot-filter-row::-webkit-scrollbar { display: none; }
             .mot-filter-row > * { flex-shrink: 0 !important; }

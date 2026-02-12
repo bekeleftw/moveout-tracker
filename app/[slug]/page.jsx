@@ -275,17 +275,27 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
             <option value="Disconnect">Disconnect</option>
           </select>
 
-          <input
-            type="date"
-            value={utility.target_date}
-            onChange={(e) => handleChange("target_date", e.target.value)}
-            style={{
-              fontSize: 13, padding: "6px 10px", borderRadius: 6,
-              border: "1px solid #d0d5dd",
-              color: utility.target_date ? "#1a1a2e" : "#98a2b3",
-              outline: "none", minWidth: 130,
-            }}
-          />
+          <div style={{ position: "relative", minWidth: 130 }}>
+            <input
+              type="date"
+              value={utility.target_date || ""}
+              onChange={(e) => handleChange("target_date", e.target.value)}
+              style={{
+                fontSize: 13, padding: "6px 10px", borderRadius: 6,
+                border: "1px solid #d0d5dd", background: "#fff",
+                color: utility.target_date ? "#1a1a2e" : "transparent",
+                outline: "none", width: "100%",
+              }}
+            />
+            {!utility.target_date && (
+              <span style={{
+                position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                fontSize: 13, color: "#98a2b3", pointerEvents: "none",
+              }}>
+                Target date
+              </span>
+            )}
+          </div>
 
           <select
             value={utility.status}
