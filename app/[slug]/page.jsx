@@ -257,7 +257,7 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
           </div>
         </div>
 
-        <div style={{
+        <div className="mot-util-controls" style={{
           display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
         }}>
           <select
@@ -394,6 +394,7 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
       opacity: deleting ? 0.5 : 1, transition: "opacity 0.2s ease",
     }}>
       <div
+        className="mot-card-header"
         onClick={() => setExpanded(!expanded)}
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -401,9 +402,10 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
           background: allConfirmed ? "#f6fef9" : "#fff",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
+        {/* Row 1: Icon + Address */}
+        <div className="mot-card-addr-row" style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+          <div className="mot-card-icon" style={{
+            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
             background: allConfirmed ? "#ecfdf3" : "#f9fafb",
             border: `1px solid ${allConfirmed ? "#b8e6c8" : "#e9eaec"}`,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -411,26 +413,24 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
           }}>
             {allConfirmed ? "\u2705" : "\uD83C\uDFE0"}
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e" }}>
               {property.address}
             </div>
-            <div style={{
-              fontSize: 13, color: "#667085",
-              display: "flex", gap: 12, marginTop: 2, flexWrap: "wrap",
+            {/* Row 2: City, State ZIP | Move-out date */}
+            <div className="mot-card-meta" style={{
+              fontSize: 13, color: "#667085", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>
-              <span>{property.city}, {property.state} {property.zip}</span>
+              {property.city}, {property.state} {property.zip}
               {property.tenant_move_out && (
-                <>
-                  <span style={{ color: "#d0d5dd" }}>|</span>
-                  <span suppressHydrationWarning>Move-out: {formatDate(property.tenant_move_out)}</span>
-                </>
+                <span suppressHydrationWarning> · Move-out: {formatDate(property.tenant_move_out)}</span>
               )}
             </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        {/* Row 3: Progress + badge + chevron */}
+        <div className="mot-card-bottom-row" style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
           <div style={{
             display: "flex", alignItems: "center", gap: 8,
             fontSize: 13, color: "#667085",
@@ -1240,7 +1240,7 @@ export default function TrackerPage({ params }) {
   return (
     <div style={{ minHeight: "100vh", background: "#f8f9fb" }}>
       {/* Top bar */}
-      <div style={{
+      <div className="mot-topbar" style={{
         background: "#fff", borderBottom: "1px solid #e9eaec",
         padding: "12px 32px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1261,14 +1261,14 @@ export default function TrackerPage({ params }) {
             </div>
           </div>
         </div>
-        <div style={{ fontSize: 13, color: "#667085" }}>
+        <div className="mot-topbar-powered" style={{ fontSize: 13, color: "#667085" }}>
           Powered by{" "}
           <span style={{ fontWeight: 600, color: brandColor }}>Utility Profit</span>
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px" }}>
+      <div className="mot-content" style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px" }}>
         {/* Stats bar */}
         <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
           {[
@@ -1356,7 +1356,7 @@ export default function TrackerPage({ params }) {
 
         {/* Search & filter bar */}
         {sortedProperties.length > 0 && (
-          <div style={{
+          <div className="mot-filter-row" style={{
             display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center",
           }}>
             <div style={{
