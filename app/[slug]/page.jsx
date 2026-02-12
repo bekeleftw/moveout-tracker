@@ -27,6 +27,19 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatPhone(phone) {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  const d = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return phone;
+}
+
+function needsAttention(property) {
+  const d = daysUntil(property.tenant_move_out);
+  return d <= 14 && property.utilities.some((u) => u.status === "Not Started" || u.status === "Called");
+}
+
 // --- API helpers ---
 async function updateUtility(recordId, fields) {
   const res = await fetch("/api/utility", {
@@ -210,9 +223,9 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
                 <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
               </svg>
               <input
-                defaultValue={utility.provider_phone}
+                defaultValue={formatPhone(utility.provider_phone)}
                 onBlur={(e) => {
-                  if (e.target.value !== utility.provider_phone) {
+                  if (e.target.value !== formatPhone(utility.provider_phone)) {
                     handleChange("provider_phone", e.target.value);
                   }
                 }}
@@ -248,16 +261,15 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
           display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
         }}>
           <select
-            value={utility.transfer_to}
+            value={utility.transfer_to || "Owner"}
             onChange={(e) => handleChange("transfer_to", e.target.value)}
             style={{
               fontSize: 13, padding: "6px 10px", borderRadius: 6,
               border: "1px solid #d0d5dd", background: "#fff",
-              color: utility.transfer_to ? "#1a1a2e" : "#98a2b3",
+              color: "#1a1a2e",
               cursor: "pointer", outline: "none", minWidth: 140,
             }}
           >
-            <option value="">Transfer to...</option>
             <option value="Owner">Owner</option>
             <option value="PM Master Acct">PM Master Acct</option>
             <option value="Disconnect">Disconnect</option>
@@ -329,7 +341,8 @@ function UtilityRow({ utility, brandColor, onFieldChange, onRemove, managing }) 
 }
 
 function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, onUtilityAdd, onDelete, onDuplicate, bulkMode, selectedUtils, onToggleSelect }) {
-  const [expanded, setExpanded] = useState(true);
+  const allDone = property.utilities.length > 0 && property.utilities.every((u) => u.status === "Confirmed");
+  const [expanded, setExpanded] = useState(!allDone);
   const [managing, setManaging] = useState(false);
   const [showAddUtil, setShowAddUtil] = useState(false);
   const [addingType, setAddingType] = useState("");
@@ -438,12 +451,9 @@ function PropertyCard({ property, brandColor, onUtilityChange, onUtilityRemove, 
           </div>
 
           {property.tenant_move_out && (() => {
-            const urgent = !allConfirmed && daysLeft <= 3;
-            const warning = !allConfirmed && daysLeft <= 7;
-            const soon = !allConfirmed && daysLeft <= 14;
-            const overdue = daysLeft <= 0 && !allConfirmed;
-            const bg = overdue ? "#fef3f2" : urgent ? "#fef3f2" : warning ? "#fffaeb" : soon ? "#eff8ff" : allConfirmed ? "#ecfdf3" : "#f9fafb";
-            const fg = overdue ? "#b42318" : urgent ? "#b42318" : warning ? "#b54708" : soon ? "#175cd3" : allConfirmed ? "#067647" : "#667085";
+            const overdue = daysLeft < 0;
+            const bg = overdue ? "#fef3f2" : daysLeft <= 3 ? "#fef3f2" : daysLeft <= 7 ? "#fffaeb" : "#f2f4f7";
+            const fg = overdue ? "#b42318" : daysLeft <= 3 ? "#b42318" : daysLeft <= 7 ? "#b54708" : "#667085";
             const text = overdue ? "Overdue" : daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `${daysLeft}d left`;
             return (
               <span suppressHydrationWarning style={{
@@ -1210,8 +1220,7 @@ export default function TrackerPage({ params }) {
     }
     // Status filter
     if (statusFilter === "needs_attention") {
-      const d = daysUntil(p.tenant_move_out);
-      return d <= 7 && !p.utilities.every((u) => u.status === "Confirmed");
+      return needsAttention(p);
     }
     if (statusFilter === "in_progress") {
       return p.utilities.some((u) => u.status !== "Not Started" && u.status !== "Confirmed");
@@ -1226,10 +1235,7 @@ export default function TrackerPage({ params }) {
   const confirmedUtils = sortedProperties.reduce(
     (acc, p) => acc + p.utilities.filter((u) => u.status === "Confirmed").length, 0
   );
-  const urgentCount = sortedProperties.filter((p) => {
-    const d = daysUntil(p.tenant_move_out);
-    return d <= 7 && !p.utilities.every((u) => u.status === "Confirmed");
-  }).length;
+  const urgentCount = sortedProperties.filter((p) => needsAttention(p)).length;
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8f9fb" }}>
@@ -1292,10 +1298,10 @@ export default function TrackerPage({ params }) {
         }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: 0 }}>
-              Vacancy Utility Transfers
+              Upcoming Move-Outs
             </h1>
             <p style={{ fontSize: 14, color: "#667085", margin: "4px 0 0" }}>
-              Track and manage utility transfers for your move-outs. Providers auto-identified.
+              Track utility transfers across your properties. Providers are auto-identified.
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
